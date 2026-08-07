@@ -276,6 +276,162 @@ npx wrangler pages deploy ./dist --project-name=my-site
 
 免费额度：500 次部署/月，无限带宽，自定义域名。
 
+## Step 7（建站前）：需求挖掘与页面规划
+
+确定主词 + 域名之后，进入内容规划阶段。核心产出：`关键词.md`（原始汇总）+ `keywords.json`（结构化）+ 最小页面集。
+
+### 核心原则
+
+- **页面唯一依据是搜索需求**，不是"看起来完整"。不为完整性做没人搜的页面。
+- 用户搜的是具体问题（codes、tier list、某角色怎么获得），用不同页面分别承接。
+- 第一版只做最核心页面：**首页 + 10-20 个长尾内页**。
+
+### 7.1 从三来源挖长尾词
+
+#### 来源 1：Google Autocomplete（自动化）
+
+```bash
+# 主词补全
+curl -s "https://suggestqueries.google.com/complete/search?q=GAME_NAME+&client=firefox&hl=en"
+
+# 主词 + 常见后缀补全（扩展更多长尾）
+for suffix in "codes" "guide" "tier list" "wiki" "map" "characters" "update" "reddit"; do
+  curl -s "https://suggestqueries.google.com/complete/search?q=GAME_NAME+${suffix}+&client=firefox&hl=en"
+  sleep 1
+done
+```
+
+#### 来源 2：Google Trends 相关查询（自动化）
+
+使用 `niche-google-trends-mcp` 的 `trends_related_queries` 工具：
+
+```
+trends_related_queries(keyword="GAME_NAME", timeframe="1m")
+```
+
+返回 `rising`（飙升词）和 `top`（高频词）两个列表。全部记录。
+
+> 注意：当前 MCP 的 related_queries 可能返回空 query 字段（已知 bug）。
+> 备选方案：通过 Patchright + CDP 打开 Trends 页面，拦截 `/widgetdata/relatedsearches` API 响应直接解析。
+
+#### 来源 3：SimilarWeb 关键词（需用户补充）
+
+SimilarWeb Keyword Generator 是付费功能，无法自动获取。
+
+处理方式：
+- 标注"待用户补充"
+- 让用户手动去 SimilarWeb 复制第 1 页关键词列表
+- 用户粘贴后再整合
+
+### 7.2 汇总为「关键词.md」
+
+将三来源全部长尾词汇总为一个文件，按来源分组：
+
+```markdown
+# 关键词.md —— 游戏名：<主游戏词>
+
+## 来源1：Google Autocomplete
+- game_name codes
+- game_name tier list
+- game_name guide
+- ...
+
+## 来源2：Google Trends 相关查询
+- game_name codes（飙升）
+- game_name new update（飙升）
+- game_name tier list（+800%）
+- ...
+
+## 来源3：SimilarWeb（待用户补充 / 用户已提供）
+- ...
+```
+
+### 7.3 生成 keywords.json
+
+基于关键词.md，按以下硬规则生成结构化 JSON：
+
+#### 硬规则清单
+
+| # | 规则 |
+|---|---|
+| R1 | 最终关键词总数 **10-20 个** |
+| R2 | **必须有 guide 分类** |
+| R3 | 若有 Codes 分类，其下**只能有 1 个关键词** |
+| R4 | 分类禁止空泛（禁用 gameplay、general） |
+| R5 | 过滤核心主词本身、非本主题词 |
+| R6 | 同义词合并，保留搜索量最大/大众习惯的 |
+| R7 | 全英文（非英文需翻译） |
+| R8 | 可改拼写错误，**禁止扩写** |
+| R9 | 关键词统一命名为 **"游戏主题名 xxxx"** |
+| R10 | MECE-相互独立：分类间无包含关系；同分类内无同义/单复数重复 |
+| R11 | MECE-完全穷尽：一个分类下覆盖该分类所有有效需求 |
+| R12 | 每分类内，流量大的关键词排前面 |
+| R13 | 严禁遗漏任何有效关键词 |
+| R14 | 输出**纯 JSON**，禁止附加说明文字 |
+
+#### 输出格式
+
+```json
+{
+  "categories": [
+    {
+      "category": "Guide",
+      "keywords": ["game_name guide", "game_name beginner guide"]
+    },
+    {
+      "category": "Codes",
+      "keywords": ["game_name codes"]
+    },
+    {
+      "category": "Tier List",
+      "keywords": ["game_name tier list", "game_name best units"]
+    }
+  ]
+}
+```
+
+#### 自检流程（生成后必跑）
+
+1. 总数是否 10-20？（R1）
+2. 是否有 guide 分类？（R2）
+3. Codes 分类是否 ≤ 1 词？（R3）
+4. 有无空泛分类？（R4）
+5. 全英文？命名统一？（R7/R9）
+6. MECE 是否违反？（R10/R11）
+7. 分类内是否按流量降序？（R12）
+8. 输出是否纯 JSON？（R14）
+
+任一不通过 → 修正后重新输出。
+
+### 7.4 最小页面集规划
+
+基于 keywords.json 映射页面：
+
+```
+1. 首页 —— 承接主游戏词（游戏介绍/核心玩法/导航）
+2. 内页01 —— game_name codes（category: Codes）
+3. 内页02 —— game_name guide（category: Guide）
+4. 内页03 —— game_name tier list（category: Tier List）
+...
+N. 导航页 —— 角色/道具批量展示（若细分过多，不逐个做独立页）
+
+合计：首页 + 10-20 内页
+```
+
+规则：
+- 一个有效关键词 = 一个内页
+- 角色/道具类长尾若 > 10 个，归并为 1 个导航页
+- 第一版只做核心页，不追求覆盖所有可能
+
+### 7.5 交付物清单
+
+- [ ] `关键词.md`（三来源原始汇总）
+- [ ] `keywords.json`（通过全部自检）
+- [ ] 最小页面集规划清单（首页 + N 内页，与 json 一一映射）
+- [ ] 同义词合并后"还能做多少一词一页内容"的数量说明
+
+---
+
 ## 注意事项
 
 1. **不要凭直觉判断**：所有结论必须基于 Trends 数据 + SERP 实际结果
@@ -285,3 +441,5 @@ npx wrangler pages deploy ./dist --project-name=my-site
 5. **查询频率控制**：SERP 抓取每次间隔 3-5 秒，每日上限约 50 次
 6. **KD 数值无法免费获取**：SimilarWeb/Ahrefs/SEMrush 的 KD 都是付费功能，用 SERP 域名分类替代
 7. **Cloudflare API Token**：首次使用时需要用户提供，后续复用
+8. **页面唯一依据是搜索需求**：不为"看起来完整"做没人搜的页面
+9. **SimilarWeb 数据滞后约 3 天**：不能作为唯一实时依据，需与 Autocomplete/Trends 交叉验证
