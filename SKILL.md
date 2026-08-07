@@ -162,6 +162,120 @@ SERP 竞争分析的域名分类需要按领域调整。以下是常见领域的
 
 用户提供新领域时，让用户补充该领域的强竞争域名列表，或从首次 SERP 结果中识别。
 
+## Step 5（确认做之后）：域名推荐
+
+当用户确认某个主词"做"，自动给出域名推荐。**购买由用户自行操作。**
+
+### 域名推荐规则
+
+| 规则 | 说明 |
+|---|---|
+| 首选后缀 | `.wiki`（内容站最佳语义） |
+| 备选后缀 | `.com` `.org` `.net` `.online` `.site` |
+| 避坑后缀 | `.cc` `.xyz`（被灰产玩坏，搜索引擎减分） |
+| 域名格式 | 主词直接拼接，如 `palworld.wiki`、`schedule1guide.com` |
+
+### 域名可用性自动检查
+
+对每个推荐域名，自动检查是否可注册：
+
+```bash
+# .com 域名 — RDAP 协议
+curl -s -o /dev/null -w "%{http_code}" "https://rdap.verisign.com/com/v1/domain/TARGET.com"
+# 200 = 已注册, 404 = 可用
+
+# .net 域名
+curl -s -o /dev/null -w "%{http_code}" "https://rdap.verisign.com/net/v1/domain/TARGET.net"
+
+# 其他后缀 — whois
+whois TARGET.wiki 2>&1 | grep -i "no match\|not found"
+# 有输出 = 可用
+```
+
+### 输出格式
+
+```
+推荐域名（按优先级）：
+  1. keyword.wiki     — ✅ 可用 / ❌ 已注册
+  2. keyword.com      — ✅ 可用 / ❌ 已注册
+  3. keywordguide.com — ✅ 可用 / ❌ 已注册
+
+购买平台：https://www.spaceship.com（支持支付宝）
+避坑：不要买 .cc / .xyz 后缀
+```
+
+购买操作由用户自行完成。
+
+## Step 6（确认做之后）：Cloudflare 绑定
+
+域名购买后，通过 Cloudflare API 自动化完成大部分绑定操作。
+
+### Cloudflare 能做什么
+
+| 能力 | 免费账号 | 说明 |
+|---|---|---|
+| DNS 托管 | ✅ | 全球 CDN 加速 |
+| SSL 证书 | ✅ | 自动签发 |
+| **Cloudflare Pages** | ✅ | 网站部署（类似 Vercel），500 次部署/月 |
+| DDoS 防护 | ✅ | 基础防护 |
+| 缓存 | ✅ | 静态资源缓存 |
+
+**Cloudflare Pages 同时提供网站部署服务**：支持 Next.js、Astro、Hugo 等框架，可以把内容站直接部署在 Cloudflare 上，不需要额外服务器。
+
+### API 自动化流程
+
+**前置条件**：用户需要提供 Cloudflare API Token（在 https://dash.cloudflare.com/profile/api-tokens 创建）。
+
+可自动化的步骤（通过 Cloudflare API）：
+
+```bash
+CF_TOKEN="用户的API Token"
+DOMAIN="target-domain.com"
+
+# 1. 添加域名到 Cloudflare（创建 Zone）
+curl -s -X POST "https://api.cloudflare.com/client/v4/zones" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data "{\"name\":\"$DOMAIN\",\"type\":\"full\"}" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Zone ID: {d[\"result\"][\"id\"]}'); print(f'Nameservers: {d[\"result\"][\"name_servers\"]}')"
+
+# 2. 获取分配的 Nameserver（从上一步结果中提取）
+# 结果示例：["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"]
+
+# 3. 删除默认 DNS 记录（如有）
+ZONE_ID="从步骤1获取"
+curl -s "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  | python3 -c "import sys,json; [print(r['id']) for r in json.load(sys.stdin)['result']]"
+# 对每个 record_id 执行 DELETE
+
+# 4. 触发 Nameserver 检查
+curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/activation_check" \
+  -H "Authorization: Bearer $CF_TOKEN"
+```
+
+### 不可自动化的步骤（需用户手动）
+
+**修改 Nameserver**：Spaceship.com 没有公开 API，用户需要手动操作：
+
+1. 打开 https://www.spaceship.com/zh/application/domain-list-application/
+2. 找到域名 → **Nameservers & DNS** → **Change**
+3. 填入 Cloudflare 分配的 2 个 nameserver
+4. 保存，等待 10 分钟生效
+
+### Cloudflare Pages 部署（可选，后续建站时用）
+
+确认域名绑定成功后，可用 Cloudflare Pages 部署网站：
+
+```bash
+# 通过 Wrangler CLI 部署
+npx wrangler pages deploy ./dist --project-name=my-site
+
+# 或者连接 Git 仓库自动部署（在 Cloudflare 控制台设置）
+```
+
+免费额度：500 次部署/月，无限带宽，自定义域名。
+
 ## 注意事项
 
 1. **不要凭直觉判断**：所有结论必须基于 Trends 数据 + SERP 实际结果
@@ -170,3 +284,4 @@ SERP 竞争分析的域名分类需要按领域调整。以下是常见领域的
 4. **搜索意图检查**：通过 Autocomplete 结果判断搜索意图是否和预期一致
 5. **查询频率控制**：SERP 抓取每次间隔 3-5 秒，每日上限约 50 次
 6. **KD 数值无法免费获取**：SimilarWeb/Ahrefs/SEMrush 的 KD 都是付费功能，用 SERP 域名分类替代
+7. **Cloudflare API Token**：首次使用时需要用户提供，后续复用
