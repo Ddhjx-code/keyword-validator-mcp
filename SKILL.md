@@ -321,6 +321,157 @@ Cloudflare Pages 可直接部署网站（免费 500 次/月，无限带宽）。
 
 ---
 
+# 第三阶段：建站执行
+
+确认主词 + 页面矩阵后，进入实际建站。按 Task 0 → Task 1 → Task 2 → Task 3 顺序执行。
+
+## Step 10: 项目准备（Task 0）
+
+1. 建立项目目录结构：
+```
+{game}-wiki/
+├─ content/
+│  ├─ keywords.json          # 10-20 个内页关键词（Phase 2 产物）
+│  ├─ 关键词素材.md           # 全部关键词素材归档
+│  └─ home.json              # 首页内容 JSON
+├─ public/                   # favicon 等静态资源
+├─ styles/
+│  └─ theme.css              # 亮/暗两套 HSL 主题变量
+├─ locales/                  # 多语言（最多 4 门，必含英语）
+└─ pages/                    # 首页 + 内页
+```
+
+2. 确认 `keywords.json` 就绪（Phase 2 产出）
+3. 创建空的 `关键词素材.md` 骨架
+
+## Step 11: 首页（Task 1）
+
+### 需要收集的 4 样基础信息
+
+| 信息 | 说明 | 获取方式 |
+|---|---|---|
+| SEO 元数据 | title(≤60) + description(140-160) + keywords(≤100) | 联网搜索生成 |
+| 官方链接 | 官网/Discord/YouTube/Reddit/Steam | 搜索验证，只放可访问链接 |
+| 主题色 | 亮/暗两套 HSL 色值，贴近游戏调性 | 参考官网/宣传图 |
+| 多语言优先级 | 按 Trends 地区热度排序，最多 4 门含英语 | Phase 1 的地区数据 |
+
+### 首页 JSON Schema
+
+```json
+{
+  "metadata": { "title": "", "description": "", "keywords": "" },
+  "officialLinks": { "site": "", "discord": "", "youtube": "", "reddit": "", "steam": "" },
+  "theme": { "light": { "nav-theme": "", "nav-theme-light": "" }, "dark": { "nav-theme": "", "nav-theme-light": "" } },
+  "languages": [],
+  "home": {
+    "hero": { "eyebrow": "", "title": "", "description": "", "stats": [], "cta1": {}, "cta2": {}, "cta3": {} },
+    "start": { "cards": [{}, {}, {}, {}] },
+    "aboutGame": { "paragraphs": [], "stats": [] },
+    "finalCta": { "title": "", "primary": {}, "secondary": {} },
+    "footer": { "about": "", "social": [], "legal": [] },
+    "sidebarCodes": []
+  }
+}
+```
+
+### 首页字段规则
+
+| 区块 | 规则 |
+|---|---|
+| hero | `stats` 为纯字符串数组；3 个 CTA 按钮 |
+| start | 4 张卡片：第 1 张固定新手入门，后 3 张挑玩家最常搜的内容，类型互不重复 |
+| aboutGame | 2-3 句玩法介绍 + label/value 数据对 |
+| sidebarCodes | 2 条兑换码（无则填「暂无」） |
+
+### 验收
+- [ ] title ≤ 60，description 140-160，keywords ≤ 100
+- [ ] 官方链接全部可访问
+- [ ] 主题色亮/暗两套 HSL
+- [ ] 多语言 ≤ 4 门含英语
+- [ ] start.cards 恰 4 个且类型不重复
+
+## Step 12: 网站图标（Task 2）
+
+1. 生成 512x512 png 源图（AI 生成，贴合游戏风格）
+2. 用 https://favicon.io/favicon-converter 转换
+3. 得到 8 个文件放入 `/public`：
+
+```
+site.webmanifest / favicon.ico / android-chrome-512x512.png
+android-chrome-192x192.png / apple-touch-icon.png
+favicon-32x32.png / favicon-16x16.png / source-1024.png
+```
+
+## Step 13: 内页素材收集（Task 3）
+
+### 核心原则
+
+1. **事实必须有依据**：不编造不存在的人物/兑换码/关卡
+2. **AI 用于整理，不用于凭空编造**：AI 做调研、过滤、结构化
+3. **交叉验证**：同一信息至少 2 个来源确认
+4. **参考不复制**：竞对只参考结构，不复制内容（版权合规）
+
+### 每个关键词的素材收集流程
+
+对 keywords.json 中的每个关键词，执行：
+
+#### 13.1 Google 搜索
+1. 搜索该关键词，选排名前 2 的网页
+2. 复制核心内容到素材文档
+
+#### 13.2 YouTube 搜索
+1. 搜索该关键词，选 2 个较新+高播放的视频
+2. 用字幕提取插件导出字幕
+3. 提取关键内容到素材文档
+
+#### 13.3 官网/Steam
+1. 查找与该关键词相关的官方说明
+2. 有信息则复制；若无实质信息注明"已跳过"
+
+### 素材文档模板
+
+```markdown
+# {关键词}
+
+## Google 素材
+素材来源地址：
+{URL 1}
+{URL 2}
+素材内容：
+{网页内容}
+
+## YouTube
+素材来源地址：
+{视频 URL 1}
+{视频 URL 2}
+素材内容：
+{字幕提取关键内容}
+
+## 游戏官网
+素材来源地址：
+{Steam/官网 URL}
+素材内容：
+{官方说明 或 "已跳过"}
+```
+
+### 信息渠道优先级
+
+| 渠道 | 适合获取 | 注意 |
+|---|---|---|
+| YouTube | 试玩攻略、角色评测、操作教学 | UP 主比文章更早发布新游戏攻略 |
+| Discord | 角色机制、更新说明、官方一手信息 | 海外游戏社区核心阵地 |
+| Google 搜索 | 已有攻略文章、Wiki 页面 | 参考结构，不复制内容 |
+| 竞对网站 | 页面结构参考、信息缺口发现 | 发现它们没做好的地方 |
+| 官网/Steam | 基本介绍、角色列表、更新日志 | 最权威的事实来源 |
+
+### 验收
+- [ ] keywords.json 中每个关键词都有素材文档
+- [ ] 每个素材文档含 Google/YouTube/官网 三板块
+- [ ] 关键事实完成 ≥2 来源交叉验证
+- [ ] 无编造内容，所有事实可溯源
+
+---
+
 ## 注意事项
 
 1. **不要凭直觉判断**：所有结论必须基于 Trends + 竞品流量 + DA 数据
@@ -331,6 +482,9 @@ Cloudflare Pages 可直接部署网站（免费 500 次/月，无限带宽）。
 6. **KE 评分仅参考**：SEO Difficulty 是 KE 自算模型，不透明；以竞品实际流量 + DA 为准
 7. **页面唯一依据是搜索需求**：不为"看起来完整"做没人搜的页面
 8. **优先级必须有数据支撑**：P0/P1/P2 必须标注依据（Trends 值 / 竞品流量 / 仅 Suggest）
+9. **事实必须有依据**：游戏攻略内容不得编造，必须来自真实信息源
+10. **交叉验证**：同一信息至少 2 个来源确认
+11. **参考不复制**：竞对内容只参考结构和发现缺口，不直接复制（版权合规）
 
 ## 数据来源可信度层级
 
@@ -341,3 +495,28 @@ Cloudflare Pages 可直接部署网站（免费 500 次/月，无限带宽）。
 | 3 | Trends Related（TOP/飙升） | 词在主词生态中的权重 | 只有相对分，无绝对量 |
 | 4 | Google Suggest | 有真实搜索行为 | 无量化，不能区分 10/天还是 10000/天 |
 | 5（最弱） | KE SEO Difficulty 评分 | 竞争难度参考 | 算法不透明，仅辅助 |
+
+## 全流程总览
+
+```
+Phase 1: 选词判断
+  Step 1  候选词发现（Steam API）
+  Step 2  Trends 热度验证（vs GPTs）
+  Step 3  SERP 竞争分析 + KE 竞品流量
+  Step 4  Autocomplete 细分词
+
+Phase 2: 内容规划
+  Step 5  三来源挖词（Suggest + Trends Related + KE）
+  Step 6  关键词.md + keywords.json
+  Step 7  页面矩阵（数据定优先级）
+
+Phase 3: 建站准备
+  Step 8  域名推荐 + 可用性检查
+  Step 9  Cloudflare 绑定（API 半自动）
+
+Phase 4: 建站执行
+  Step 10  项目目录准备
+  Step 11  首页（SEO + 官方链接 + 主题色 + 多语言 + JSON）
+  Step 12  Favicon 生成
+  Step 13  内页素材收集（Google + YouTube + 官网，交叉验证）
+```
