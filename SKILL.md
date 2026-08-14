@@ -1,6 +1,6 @@
 ---
 name: keyword-validator
-description: Use when validating whether a keyword/niche is worth building a content site or tool around. Triggers on "验证关键词" "选词判断" "keyword validation" "niche validation" "SERP analysis" "能不能做" or when user provides candidate keywords and asks about search volume, competition, or feasibility. Requires niche-google-trends-mcp, Keywords Everywhere Chrome extension, and a Chrome instance with CDP on port 9223 (same as Google Trends MCP).
+description: Use when validating whether a keyword/niche is worth building a content site or tool around, AND for post-launch data monitoring, SEO health checks, and monetization. Triggers on "验证关键词" "选词判断" "keyword validation" "niche validation" "SERP analysis" "能不能做" "数据监控" "查看GSC数据" "查看GA数据" "广告变现" "AdSense" "Adsterra" "补页面" "数据复盘" or when user provides candidate keywords and asks about search volume, competition, or feasibility. Requires niche-google-trends-mcp, Keywords Everywhere Chrome extension, Chrome instance with CDP on port 9223, and site-validator-mcp (for post-launch monitoring).
 ---
 
 # Keyword Validator — 关键词选词判断 + 内容规划工作流
@@ -519,4 +519,192 @@ Phase 4: 建站执行
   Step 11  首页（SEO + 官方链接 + 主题色 + 多语言 + JSON）
   Step 12  Favicon 生成
   Step 13  内页素材收集（Google + YouTube + 官网，交叉验证）
+
+Phase 5: 数据监控与变现
+  Step 14  接入 Google Analytics + Search Console
+  Step 15  数据驱动补页面
+  Step 16  广告变现（Adsterra → AdSense）
+  Step 17  数据复盘与决策（继续 / 换词）
 ```
+
+---
+
+# 第五阶段：数据监控与变现
+
+## 核心理念
+
+游戏站不是一次写完的。用户的实际搜索行为会不断暴露新需求——GSC 里出现的新搜索词就是下一步要做的页面。大部分游戏站不会长期赚钱，要用数据决定"继续还是换"，不靠感觉坚持。
+
+---
+
+## Step 14: 接入 Google Analytics + Search Console
+
+### 14.1 Google Analytics 4
+
+在 `layout.tsx`（Next.js App Router）中注入 GA 代码：
+
+```tsx
+const GA_MEASUREMENT_ID = "G-XXXXXXX";
+
+// 在 <html><head> 内：
+<script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} />
+<script dangerouslySetInnerHTML={{ __html: `
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '${GA_MEASUREMENT_ID}');
+`}} />
+```
+
+**注意**：Next.js 的 `next/script` + `afterInteractive` 不会在静态导出 HTML 中渲染。使用原生 `<script>` + `dangerouslySetInnerHTML` 确保 SSR/静态 HTML 都包含 GA 代码。
+
+### 14.2 Google Search Console
+
+1. 在 [search.google.com/search-console](https://search.google.com/search-console) 添加网站
+2. 验证所有权（DNS TXT 记录 / HTML 文件 / HTML 标签）
+3. 提交 sitemap.xml
+
+### 14.3 site-validator-mcp 接入
+
+通过 `site-validator-mcp` 工具直接在 CLI 中查询数据，无需反复打开 Google 后台：
+
+| 工具 | 功能 | 参数 |
+|---|---|---|
+| `ga_validate` | 验证 GA 代码是否正确注入 | url, expected_id |
+| `ga_query` | 查询 GA4 数据（PV、UV、来源、热门页面、实时） | property_id, metric, start_date, end_date |
+| `gsc_validate` | 验证 sitemap/robots.txt/可索引性 | url |
+| `gsc_query` | 查询 GSC 数据（搜索词、点击、展示、排名） | site_url, metric, start_date, end_date |
+| `seo_check` | 完整 SEO 健康检查 | url |
+
+需要 Google Service Account 凭据。配置方式：
+1. Google Cloud Console 创建 Service Account + 下载 JSON 密钥
+2. GA4: 添加 Service Account email 为 Viewer
+3. GSC: 添加 Service Account email 为 Full 权限
+4. 设置环境变量 `GOOGLE_SERVICE_ACCOUNT_KEY=/path/to/key.json`
+
+---
+
+## Step 15: 数据驱动补页面
+
+### 15.1 GSC 数据五指标
+
+每次查看 GSC（或用 `gsc_query`），盯着这五个数看：
+
+| 指标 | 含义 | 关注点 |
+|---|---|---|
+| 展示量 | 页面在搜索结果出现次数 | 在涨 = 词流量上升 |
+| 点击量 | 多少人从搜索点进网站 | 核心转化指标 |
+| 平均排名 | 页面排第几位 | 前 10 才有意义 |
+| 平均点击率 | 受排名直接影响 | 排名越前 CTR 越高 |
+| 搜索词报告 | 用户搜了什么词看到你 | **最重要**——发现没想到的词 |
+
+### 15.2 根据数据做动作
+
+| 数据信号 | 动作 |
+|---|---|
+| 用户搜了新词，GSC 展示量大，但没对应页面 | **补页面** |
+| 某页面表现好（高点击/高展示） | 围绕它做更多关联内容 |
+| 页面没被收录 | 检查、修改、重新提交 sitemap |
+| 出现 "xxx how to get character X" | 补获取攻略页 |
+| 出现 "xxx best build for Y" | 补配装推荐页 |
+| 出现 "xxx codes 2026" | 更新 codes 页，加上年份 |
+
+### 15.3 MCP 自动化查询示例
+
+```
+# 查看最近 28 天的搜索词表现
+gsc_query site_url="https://expedition33.wiki/" metric="search_queries"
+
+# 过滤某个关键词
+gsc_query site_url="https://expedition33.wiki/" metric="search_queries" query_filter="build"
+
+# 查看哪些页面表现最好
+gsc_query site_url="https://expedition33.wiki/" metric="top_pages"
+
+# 查看实时在线用户
+ga_query property_id="549933418" metric="realtime"
+
+# 查看流量来源
+ga_query property_id="549933418" metric="traffic_sources" start_date="2025-08-01"
+```
+
+---
+
+## Step 16: 广告变现
+
+### 16.1 AdSense（主力，长期）
+
+**Google AdSense** 是 Google 的广告系统。广告位放网站上，Google 自动匹配广告，有人看或点就赚钱。
+
+**接入时机**：日访问 > 500 效果最好。不够也能接，只是收入低（日访问几百时每天几毛到几块）。
+
+**接入步骤**：
+1. 注册 [adsense.google.com](https://adsense.google.com)
+2. 获取广告代码，放在网站页面里
+3. Google 审核（几天到几周不等）
+4. 审核通过后广告开始展示
+
+**审核经常被拒原因**：
+- 内容太少、质量差
+- 缺隐私页
+- 只有单页
+
+**最低要求**：首页 + 关于页(/about) + 联系页(/contact) + 若干内容页面。被拒几次是正常的，补内容再提交。
+
+**收款方式**：
+- 电汇到国内银行卡：固定手续费较高，适合大金额
+- 虚拟货币方式：约 2% 手续费，适合中小金额
+
+### 16.2 Adsterra（早期过渡）
+
+新站早期流量小，AdSense 审核严不一定过审。**Adsterra 门槛低、审核快**，新站先接它赚第一笔。
+
+**接入步骤**：
+1. 去 [adsterra.com](https://adsterra.com) 注册 Publisher 账号
+2. 创建广告位，选广告形式（新手推荐 Native Banner 或 Banner，**别选 Popunder 弹窗**）
+3. 等待审核（通常 1-3 分钟）
+4. 获取广告 Key（32 位十六进制字符串）
+5. 在代码中引用广告脚本，key 通过环境变量传入
+
+### 16.3 选择策略
+
+| 阶段 | 方案 |
+|---|---|
+| 早期（日访问 <500） | Adsterra 先跑通变现 |
+| 中期（日访问 500+） | 申请 AdSense |
+| 稳定期 | AdSense 放主力广告位 + Adsterra 放次要位补充收入 |
+
+---
+
+## Step 17: 数据复盘与决策
+
+### 17.1 复盘周期
+
+建站上线后，每 **7 天** 做一次数据复盘。
+
+### 17.2 复盘表
+
+| 项目 | 记录 |
+|---|---|
+| 统计时间段 | |
+| 总展示量 | |
+| 总点击量 | |
+| 平均排名 | |
+| 前 5 个搜索词 | 1. 2. 3. 4. 5. |
+| 出现了哪些没做页面的词 | |
+| 哪些页面没被收录 | |
+| 下一步补哪 2-3 个页面 | 1. 2. 3. |
+| 广告收入（如已接入） | |
+
+### 17.3 决策标准
+
+**继续补这个站**：数据在涨、有展示有点击、甚至有广告收入
+- 补更多页面，扩大关键词覆盖
+- 接入/优化 AdSense
+- 把建站流程做成模板，下一个站更快上线
+
+**换下一个游戏词**：有展示没点击、做了几周还是每天个位数访问
+- 保留模板和流程经验
+- 用同样流程换一个游戏词（第二次会快很多）
+- 检查是不是内容没真正回答用户问题
+- 不丢人——大部分站都不赚钱
