@@ -21,3 +21,7 @@ Thumbs.db
 
 # Project research data
 clair-obscur-expedition-33/
+phantom-blade-zero/
+
+# Agent session state
+.omo/
